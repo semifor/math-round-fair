@@ -48,7 +48,7 @@ account A and account C will received no allocation, and account B will receive
 a total allocation of 10,000 items.  Account B always receives the benefit of
 the rounding errors.
 
-<round_fair> uses an algorithm with randomness to ensure a fair distribution of
+C<round_fair> uses an algorithm with randomness to ensure a fair distribution of
 rounding errors.  In our example problem, we start with 1 item to allocate.  We
 calculate account A's share, 1/3.  Since it is less than one item, we give it a
 1/3 chance of rounding up (and, therefore, a 2/3 chance of rounding down).  It
@@ -78,7 +78,7 @@ C<$value> must be an integer.
 sub round_fair {
     my $value = shift;
 
-    croak "Vaule to be allocated must be an integer" unless int($value) == $value;
+    croak "Value to be allocated must be an integer" unless int($value) == $value;
     
     my $basis = 0;
     for my $w ( @_ ) {
