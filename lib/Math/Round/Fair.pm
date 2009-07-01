@@ -63,8 +63,6 @@ any unallocated items.
 
 This algorithm works for any number of weighted allocations.
 
-=head1 METHODS
-
 =over 4
 
 =item round_fair($value, @weights)
