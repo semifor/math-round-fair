@@ -1,0 +1,9 @@
+.*.swp
+META.yml
+Makefile
+blib/
+pm_to_blib
+*.bak
+*.old
+*.gz
+.prove
