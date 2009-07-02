@@ -25,6 +25,11 @@ Math::Round::Fair - distribute rounding errors fairly
 This module provides a single, exportable function (C<round_fair>) which
 allocates an integer value, fairly distributing rounding errors.
 
+C<round_fair> rounds up, or down, randomly, where the probability of rounding
+up is equal to the fraction to round.  For example, C<round_fair> will round
+0.5 to 1.0 with aprobability of 0.5.  It will round 0.3 to 1.0 3 out of 10
+times and to zero 7 out of 10 times, on average.
+
 Consider the problem of distributing one indivisible item, for example a penny,
 across three evenly weighted accounts, A, B, and C.
 
