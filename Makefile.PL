@@ -7,7 +7,6 @@ if ( $Module::Install::AUTHOR ) {
 all_from 'lib/Math/Round/Fair.pm';
 
 # resources
-repository 'git://github.com/semifor/math-round-fair.git';
 homepage   'http://github.com/semifor/math-round-fair';
 bugtracker 'http://rt.cpan.org/Public/Dist/Display.html?Name=Math-Round-Fair';
 
@@ -16,4 +15,6 @@ requires 'Exporter';
 test_requires 'Test::More';
 test_requires 'List::Util';
 
+auto_set_repository;
+auto_manifest;
 WriteAll;

@@ -1,6 +1,7 @@
 package Math::Round::Fair;
 use warnings;
 use strict;
+use 5.005000;
 use Carp;
 use base qw/Exporter/;
 
@@ -20,14 +21,38 @@ Math::Round::Fair - distribute rounding errors fairly
   my @weights = (1, 2, 3, 2, 1);
   my @allocation = round_fair($cents, @weights);
 
+  print "@allocation\n";
+
+  # output will be one of the following:
+  # 0 1 3 2 1
+  # 0 2 2 2 1
+  # 0 2 3 1 1
+  # 0 2 3 2 0
+  # 1 1 2 2 1
+  # 1 1 3 1 1
+  # 1 1 3 2 0
+  # 1 2 2 1 1
+  # 1 2 2 2 0
+
+  my @total;
+  for ( 1..900 ) {
+      @allocation = round_fair($cents, @weights);
+      @total[$_] += @allocation[$_] for 0..$#allocation;
+  }
+  print "@total\n";
+
+  # output will be *near* 700 1400 2100 1400 700, e.g.:
+  # 698 1411 2096 1418 677
+
+
 =head1 DESCRIPTION
 
-This module provides a single, exportable function (C<round_fair>) which
+This module provides a single, exportable function, C<round_fair>, which
 allocates an integer value, fairly distributing rounding errors.
 
 C<round_fair> rounds up, or down, randomly, where the probability of rounding
 up is equal to the fraction to round.  For example, C<round_fair> will round
-0.5 to 1.0 with aprobability of 0.5.  It will round 0.3 to 1.0 3 out of 10
+0.5 to 1.0 with a probability of 0.5.  It will round 0.3 to 1.0 3 out of 10
 times and to zero 7 out of 10 times, on average.
 
 Consider the problem of distributing one indivisible item, for example a penny,
@@ -40,7 +65,7 @@ the allocated portion to each is 1/3 and 1/3 rounds to zero.  We are left with
 Another approach is to adjust the basis at each step.  We start with 1 item to
 allocate to 3 accounts.  1/3 rounds to 0, so account A receives no allocation,
 and we drop it from consideration.  Now, we have 2 accounts and one item to
-allocate.  1/2 rounds to 1, so we allocate 1 item to the account B.  Account C
+allocate.  1/2 rounds to 1, so we allocate 1 item to account B.  Account C
 gets no allocation since there is nothing left to allocate.
 
 But what happens if we allocate one item to the same three accounts 10,000
@@ -49,9 +74,9 @@ up with 3,334 items.
 
 Using the naive approach, all three accounts receive no allocation since at
 each round the allocation is 1/3 which rounds to zero. Using the second method,
-account A and account C will received no allocation, and account B will receive
+account A and account C will receive no allocation, and account B will receive
 a total allocation of 10,000 items.  Account B always receives the benefit of
-the rounding errors.
+the rounding errors using the second method.
 
 C<round_fair> uses an algorithm with randomness to ensure a fair distribution of
 rounding errors.  In our example problem, we start with 1 item to allocate.  We
