@@ -5,9 +5,9 @@ use 5.005000;
 use Carp;
 use base qw/Exporter/;
 
-our $VERSION = '0.01';
+our $VERSION = '0.01-aj1';
 
-our @EXPORT_OK = qw/round_fair/;
+our @EXPORT_OK = qw/round_fair fair_round_nearest/;
 
 =head1 NAME
 
@@ -118,15 +118,195 @@ sub round_fair {
 
     return ($value) if @_ == 1;
 
-    map {
-        my $allocation = $value * $_ / $basis;
-        my $allocated  = int $allocation;
-        my $remainder  = $allocation - $allocated;
-        ++$allocated if rand() < $remainder;
-        $basis -= $_;
-        $value -= $allocated;
-        $allocated
-    } @_;
+    fair_round_nearest(map { $value * $_ / $basis } @_)
+}
+
+=item fair_round_nearest(@input_values)
+
+Returns a list of integer values, each of which is one of which is numerically
+adjacent to the corresponding element of @input_values, and whose total is
+numerically adjacent to the total of @input_values.
+
+The expected value of each output value is equal to the corresponding element
+of @input_values (within a small error margin due to the limited machine
+precision).
+
+=cut
+
+use POSIX qw/floor DBL_EPSILON/;
+
+our $debug = 1;
+
+# TBD: Maybe use Algorithm::Numerical::Shuffle for this
+sub shuffle {
+    my @in = @_;
+    my @out;
+    while(@in) {
+        push @out, splice(@in, int(rand(scalar @in)), 1);
+    }
+    die "internal error" unless @out == @_;
+    return @out;
+}
+
+sub fair_round_nearest {
+    my @in = @_;
+
+    # First, create the extra entry for the total, so that the sum of
+    # the new array is zero.
+    my $sum = 0.0;
+    $sum += $_ for(@in);
+    push @in, -$sum;
+
+    # Next, shuffle the order, so that the input order has no effect
+    # on the randomness characteristics.
+    my @reverse_order;
+    {
+        my @order = shuffle($[..$#in);
+        {
+            my $i = $[;
+            my %order = map { $_ => $i++ } @order;
+            for($[..$#order) {
+                my $next = $order{$_};
+                defined($next) or die "internal error";
+                push @reverse_order, $next;
+            }
+        }
+        @in = map { $in[$_] } @order;
+        if($debug) {
+            if($debug > 1) {
+                print STDERR "ORDER: @order\n";
+                print STDERR "REVERSE: @reverse_order\n";
+            }
+            for($[..$#order) {
+                $reverse_order[$order[$_]]==$_ or
+                  die "internal error $_";
+            }
+        }
+    }
+
+    my @out = fair_round_nearest_1(@in);
+
+    if($debug) {
+        my $sum = 0;
+        $sum += $_ for (@out);
+        $sum and die "internal error";
+    }
+
+    pop @reverse_order; # Discard the entry for the total
+    return map { $out[$_] } @reverse_order;
+}
+
+# Like fair_round_nearest, except that the inputs must sum to zero, and the
+# input order may affect the variance and correlations, etc.
+sub fair_round_nearest_1 {
+    my $eps1 = 4.0 * DBL_EPSILON() * (1 + @_);
+    my $eps = $eps1;
+    my @ip = map { floor($_) } @_;
+    my @fp = map { $_[$_] - $ip[$_] } ($[..$#_);
+    do { $_ < 0.0 and die "internal error" for(@fp)} if $debug;
+    {
+        # Adjust @fp to account for numerical errors due to small
+        # difference of large numbers when the integer parts are big.
+        my $sumfp = 0.0;
+        $sumfp += $_ for(@fp);
+        if($sumfp != int($sumfp)) {
+            my $target = int($sumfp + 0.5);
+            abs($sumfp - $target) < 0.1 && $sumfp+0.05 != $sumfp or
+              die "Total loss of precision";
+            my $adj = $target / $sumfp;
+            if($adj <= 1.0) {
+                @fp = map { $_ * $adj } @fp;
+            } else {
+                $adj = (@fp - $target) / (@fp - $sumfp);
+                @fp = map { 1.0 - (1.0-$_) * $adj } @fp;
+            }
+        }
+        # TBD: Maybe accuracy or fairness can be improved by
+        # re-adjusting after every iteration.  This would slow it
+        # down significantly, though.
+    }
+    my @out;
+    INPUT: while(@fp) {
+        $eps += $eps1;
+        if($debug) {
+            if($debug > 1) {
+                printf STDERR "%d %f\n", ($ip[$_], $fp[$_])
+                  for($[..$#fp);
+            }
+            # Check invariants.
+            die unless @ip;
+            $_ < -$eps && die "internal error: $_" for(@fp);
+            $_ > 1.0+$eps && die "internal error: $_" for(@fp);
+            my $sum = 0.0;
+            $sum += $_ for(@fp);
+            abs($sum-int($sum + 0.5)) < $eps * (1 + $sum) or
+              die "internal error: $sum";
+        }
+
+        # Calculate the next output.  Discard the next input in the
+        # process.
+        my $p0 = shift @fp; # Probability of having to overpay
+        my $r0 = rand()<$p0 ? 1 : 0; # 1 if selected to overpay; else 0
+        push @out, (shift @ip) + $r0;
+
+        # Now adjust the remaining fractional parts.
+
+        # $slack[i] = min( $p0 * $fp[i], (1-$p0) * (1-$fp[i]) ).
+        my @slack = map {
+            if(1) {
+                my $q = $p0 * $_;
+                my $q2 = (1.0 - $_) * (1.0 - $p0);
+                $q2 < $q ? $q2 : $q
+            } else {
+                # This is fewer FLOPS, but the perf benefit
+                # is only 1% on a modern system, and it leads
+                # to greater numerical errors for some reason.
+                my $add = $p0 + $_;
+                my $mult = $p0 * $_;
+                $add > 1.0 ? 1.0 - $add + $mult : $mult
+            }
+        } @fp;
+        my $tslack = 0.0;
+        $tslack += $_ for(@slack);
+
+        # See bottom of file for proof of this property:
+        $tslack + $eps >= $p0 * (1.0 - $p0) or
+          die "internal error: $tslack $eps";
+        print STDERR "TSLACK = $tslack\n" if $debug > 1;
+
+        if($tslack > $eps1) {
+            $eps += 128.0 * $eps1 * $eps / $tslack;
+            my $gain;
+            # NOTE: The expected value of gain is
+            #	$p0 * ($p0 - 1.0) /$tslack +
+            #	(1.0 - $p0) * $p0 / $tslack = 0
+            if($r0) {
+                # Last guy overpaid, so the probabilities for
+                # subsequent payers drop.
+                $gain = ($p0 - 1.0) / $tslack;
+            } else {
+                # Last guy underpaid, so the probabilities for
+                # subsequent payers rise.
+                $gain = $p0 / $tslack;
+            }
+
+            # NOTE: The change in the sum of @fp due to this step
+            # is $tslack * $gain, which is either $p0 or ($p0 - 1).
+            # Either way, the sum remains an integer, because it
+            # was reduced by $p0 when we shifted off the first
+            # element early in the INPUT loop iteration.
+            # Also note that each element of @fp stays in the range
+            # [0,1] because if $r0, then slack($_, $p0) * -$gain <=
+            # $p0 * $_ * (1.0 - $p0) / ($p0 * (1.0 - $p0)) ==
+            # $_, and otherwise slack($_, $p0) * $gain <=
+            # (1 - $p0) * (1 - $_) * $p0 / ($p0 * (1.0 - $p0)) ==
+            # 1 - $_.
+            # We modify in place here, for performance.
+            $_ += shift(@slack) * $gain for(@fp);
+        }
+    }
+    die if @ip;
+    return @out;
 }
 
 1;
@@ -135,13 +315,85 @@ __END__
 
 =back
 
-=head1 AUTHOR
+=head1 CAVEATS
 
-Marc Mims <marc@questright.com>
+=over 2
+
+=item *
+
+A number of in-situ integrity checks are enabled by default.
+The execution time can be reduced by approximately 25% if these checks
+are disabled by setting $Math::Round::Fair::debug to 0.
+This might become the default someday, so set it to 1 if you really want
+the checks.
+
+=item *
+
+The algorithm that satisfies these constraints is not necessarily unique,
+and then implementation may change over time.
+
+=item *
+
+Randomness is obtained via calls to rand().
+You might want to call srand() first.
+The number of invocations to rand() per call may change in subsequent versions.
+
+=item *
+
+The rounding of each element in the list in I<not> independent of the rounding
+of the other elements.
+This is the price that you pay for guaranteeing that the total is also fair
+and accurate.
+
+=back
+
+=head1 AUTHORS
+
+Marc Mims <marc@questright.com>, Anders Johnson <anders@ieee.org>
 
 =head1 LICENSE
 
-Copyright (c) 2009 Marc Mims
+Copyright (c) 2009-2010 Marc Mims
 
 This is free software.  You may use it, distributed it, and modify it under the
 same terms as Perl itself.
+
+=cut
+
+PROOF THAT $tslack >= $p0 * (1 - $p0)
+
+Imagine a clock, where 0.0 is noon, 0.5 is 6 o'clock, and 1.0 is noon again,
+etc.  If we start at 0.0, and advance clockwise first for $p0, and then for
+every remaining element of @fp, then we have to wind up at noon (according
+to the invariant).
+
+If $p0 is 0 or 1, then it is possible that every element of @fp is either 0
+or 1, in which case $tslack is 0 and the theorem holds trivially.  Otherwise,
+the clock has to somehow travel the absolute distance back to noon.
+
+slack($_, $p0) == (1-$p0)*(1-$_) if and only if (1-$p0)*(1-$_) <= $p0*$_, or
+equivalently 1-$p0-$_+$p0*$_ <= $p0*$_, or equivalently $_ >= 1-$p0.  For
+$_ <= 1-$p0, we can imagine the clock advancing clockwise by $_.  For
+$_ >= 1-$p0, we can imagine the clock retreating counter-clockwise by 1-$_.
+Starting at $p0, the total absolute distance traveled clockwise must be at least
+1-$p0, or the total abolute distance traveled counter-clockwise must be
+at least $p0 (or both).
+
+Mathematically:
+
+$tslack == sum { $_ <= 1-$p0 ? $p0*$_ : (1-$p0)*(1-$_) } @fp ==
+  $p0 * sum { $_ <= 1-$p0 ? $_ : 0 } @fp +
+  (1-$p0) * sum { $_ >= 1-$p0 ? 1-$_ : 0 } @fp.
+
+sum { $_ <= 1-$p0 ? $_ : 0 } @fp >= 1-$p0. [clockwise]
+sum { $_ >= 1-$p0 ? 1-$_ : 0 } @fp >= $p0. [counter-clockwise]
+
+And if $p0 * (1 - $p0) > 0, then either
+  sum { $_ <= 1-$p0 ? $_ : 0 } @fp >= 1 - $p0, which implies
+  $tslack >= $p0 * sum { $_ <= 1-$p0 ? $_ : 0 } @fp >= $p0 * (1 - $p0);
+or
+  sum { $_ >= 1-$p0 ? 1 - $_ : 0 } @fp >= $p0, which implies
+  $tslack >= (1-$p0) * sum { $_ >= 1-$p0 ? 1-$_ : 0 } @fp >= (1 - $p0) * $p0.
+
+q.e.d.
+

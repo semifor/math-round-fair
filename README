@@ -89,11 +89,38 @@ DESCRIPTION
 
         $value must be an integer.
 
-AUTHOR
-    Marc Mims <marc@questright.com>
+    fair_round_nearest(@input_values)
+        Returns a list of integer values, each of which is one of which is
+        numerically adjacent to the corresponding element of @input_values,
+        and whose total is numerically adjacent to the total of
+        @input_values.
+
+        The expected value of each output value is equal to the
+        corresponding element of @input_values (within a small error margin
+        due to the limited machine precision).
+
+CAVEATS
+    * A number of in-situ integrity checks are enabled by default. The
+      execution time can be reduced by approximately 25% if these checks are
+      disabled by setting $Math::Round::Fair::debug to 0. This might become
+      the default someday, so set it to 1 if you really want the checks.
+
+    * The algorithm that satisfies these constraints is not necessarily
+      unique, and then implementation may change over time.
+
+    * Randomness is obtained via calls to rand(). You might want to call
+      srand() first. The number of invocations to rand() per call may change
+      in subsequent versions.
+
+    * The rounding of each element in the list in *not* independent of the
+      rounding of the other elements. This is the price that you pay for
+      guaranteeing that the total is also fair and accurate.
+
+AUTHORS
+    Marc Mims <marc@questright.com>, Anders Johnson <anders@ieee.org>
 
 LICENSE
-    Copyright (c) 2009 Marc Mims
+    Copyright (c) 2009-2010 Marc Mims
 
     This is free software. You may use it, distributed it, and modify it
     under the same terms as Perl itself.

@@ -14,6 +14,7 @@ requires 'Carp';
 requires 'Exporter';
 test_requires 'Test::More';
 test_requires 'List::Util';
+test_requires 'Math::CDF';
 
 auto_set_repository;
 auto_manifest;
