@@ -183,10 +183,10 @@ sub fair_round_nearest_1 {
               die "Total loss of precision";
             my $adj = $target / $sumfp;
             if($adj <= 1.0) {
-                @fp = map { $_ * $adj } @fp;
+                $_ *= $adj for @fp;
             } else {
                 $adj = (@fp - $target) / (@fp - $sumfp);
-                @fp = map { 1.0 - (1.0-$_) * $adj } @fp;
+                $_ = 1.0 - (1.0-$_) * $adj for @fp;
             }
         }
         # TBD: Maybe accuracy or fairness can be improved by
