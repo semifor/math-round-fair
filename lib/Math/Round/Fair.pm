@@ -4,6 +4,7 @@ use strict;
 use 5.005000;
 use Carp;
 use base qw/Exporter/;
+use List::Util qw/shuffle sum min/;
 
 our $VERSION = '0.01-aj1';
 
@@ -137,24 +138,12 @@ use POSIX qw/floor DBL_EPSILON/;
 
 our $debug = 1;
 
-# TBD: Maybe use Algorithm::Numerical::Shuffle for this
-sub shuffle {
-    my @in = @_;
-    my @out;
-    while(@in) {
-        push @out, splice(@in, int(rand(scalar @in)), 1);
-    }
-    die "internal error" unless @out == @_;
-    return @out;
-}
-
 sub fair_round_nearest {
     my @in = @_;
 
     # First, create the extra entry for the total, so that the sum of
     # the new array is zero.
-    my $sum = 0.0;
-    $sum += $_ for(@in);
+    my $sum = sum 0, @in;
     push @in, -$sum;
 
     # Next, shuffle the order, so that the input order has no effect
@@ -186,11 +175,7 @@ sub fair_round_nearest {
 
     my @out = fair_round_nearest_1(@in);
 
-    if($debug) {
-        my $sum = 0;
-        $sum += $_ for (@out);
-        $sum and die "internal error";
-    }
+    sum(0, @out) == 0 or die "internal error" if $debug;
 
     pop @reverse_order; # Discard the entry for the total
     return map { $out[$_] } @reverse_order;
@@ -207,8 +192,7 @@ sub fair_round_nearest_1 {
     {
         # Adjust @fp to account for numerical errors due to small
         # difference of large numbers when the integer parts are big.
-        my $sumfp = 0.0;
-        $sumfp += $_ for(@fp);
+        my $sumfp = sum 0, @fp;
         if($sumfp != int($sumfp)) {
             my $target = int($sumfp + 0.5);
             abs($sumfp - $target) < 0.1 && $sumfp+0.05 != $sumfp or
@@ -237,8 +221,7 @@ sub fair_round_nearest_1 {
             die unless @ip;
             $_ < -$eps && die "internal error: $_" for(@fp);
             $_ > 1.0+$eps && die "internal error: $_" for(@fp);
-            my $sum = 0.0;
-            $sum += $_ for(@fp);
+            my $sum = sum 0, @fp;
             abs($sum-int($sum + 0.5)) < $eps * (1 + $sum) or
               die "internal error: $sum";
         }
@@ -254,9 +237,7 @@ sub fair_round_nearest_1 {
         # $slack[i] = min( $p0 * $fp[i], (1-$p0) * (1-$fp[i]) ).
         my @slack = map {
             if(1) {
-                my $q = $p0 * $_;
-                my $q2 = (1.0 - $_) * (1.0 - $p0);
-                $q2 < $q ? $q2 : $q
+                min $p0 * $_, (1 - $_) * (1.0 - $p0)
             } else {
                 # This is fewer FLOPS, but the perf benefit
                 # is only 1% on a modern system, and it leads
@@ -266,8 +247,7 @@ sub fair_round_nearest_1 {
                 $add > 1.0 ? 1.0 - $add + $mult : $mult
             }
         } @fp;
-        my $tslack = 0.0;
-        $tslack += $_ for(@slack);
+        my $tslack = sum 0, @slack;
 
         # See bottom of file for proof of this property:
         $tslack + $eps >= $p0 * (1.0 - $p0) or
