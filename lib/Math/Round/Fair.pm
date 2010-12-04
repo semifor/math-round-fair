@@ -148,37 +148,20 @@ sub fair_round_nearest {
 
     # Next, shuffle the order, so that the input order has no effect
     # on the randomness characteristics.
-    my @reverse_order;
-    {
-        my @order = shuffle($[..$#in);
-        {
-            my $i = $[;
-            my %order = map { $_ => $i++ } @order;
-            for($[..$#order) {
-                my $next = $order{$_};
-                defined($next) or die "internal error";
-                push @reverse_order, $next;
-            }
-        }
-        @in = map { $in[$_] } @order;
-        if($debug) {
-            if($debug > 1) {
-                print STDERR "ORDER: @order\n";
-                print STDERR "REVERSE: @reverse_order\n";
-            }
-            for($[..$#order) {
-                $reverse_order[$order[$_]]==$_ or
-                  die "internal error $_";
-            }
-        }
-    }
+    my @order = shuffle($[..$#in);
+    @in = map $in[$_], @order;
 
     my @out = fair_round_nearest_1(@in);
 
     sum(0, @out) == 0 or die "internal error" if $debug;
 
-    pop @reverse_order; # Discard the entry for the total
-    return map { $out[$_] } @reverse_order;
+    # put the output back into original order
+    my @r;
+    $r[$order[$_]] = $out[$_] for $[ .. $#order;
+
+    pop @r; # Discard the entry for the total
+
+    return @r;
 }
 
 # Like fair_round_nearest, except that the inputs must sum to zero, and the
