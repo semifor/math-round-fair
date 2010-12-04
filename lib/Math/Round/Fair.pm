@@ -109,7 +109,7 @@ C<$value> must be an integer.
 sub round_fair {
     my $value = shift;
 
-    croak "Value to be allocated must be an integer" unless int($value) == $value;
+    croak "Value to be allocated must be an integer >= 0" unless int($value) == $value && $value >= 0;
     
     my $basis = 0;
     for my $w ( @_ ) {
@@ -118,6 +118,7 @@ sub round_fair {
     }
 
     return ($value) if @_ == 1;
+    return (0) x @_ if $value == 0;
 
     fair_round_nearest(map { $value * $_ / $basis } @_)
 }
@@ -136,7 +137,7 @@ precision).
 
 use POSIX qw/floor DBL_EPSILON/;
 
-our $debug = 1;
+our $debug = 0;
 
 sub fair_round_nearest {
     my @in = @_;
@@ -197,7 +198,7 @@ sub fair_round_nearest_1 {
         $eps += $eps1;
         if($debug) {
             if($debug > 1) {
-                printf STDERR "%d %f\n", ($ip[$_], $fp[$_])
+                warn sprintf "%d %f\n", ($ip[$_], $fp[$_])
                   for($[..$#fp);
             }
             # Check invariants.
@@ -235,7 +236,7 @@ sub fair_round_nearest_1 {
         # See bottom of file for proof of this property:
         $tslack + $eps >= $p0 * (1.0 - $p0) or
           die "internal error: $tslack $eps";
-        print STDERR "TSLACK = $tslack\n" if $debug > 1;
+        warn "TSLACK = $tslack\n" if $debug > 1;
 
         if($tslack > $eps1) {
             $eps += 128.0 * $eps1 * $eps / $tslack;
