@@ -5,10 +5,13 @@ use 5.005000;
 use Carp;
 use base qw/Exporter/;
 use List::Util qw/shuffle sum min/;
+use POSIX qw/floor ceil DBL_EPSILON/;
 
 our $VERSION = '0.01-aj1';
 
-our @EXPORT_OK = qw/round_fair fair_round_nearest/;
+our $debug = 0;
+
+our @EXPORT_OK = qw/round_fair fair_round_adjacent/;
 
 =head1 NAME
 
@@ -120,10 +123,10 @@ sub round_fair {
     return ($value) if @_ == 1;
     return (0) x @_ if $value == 0;
 
-    fair_round_nearest(map { $value * $_ / $basis } @_)
+    fair_round_adjacent(map { $value * $_ / $basis } @_)
 }
 
-=item fair_round_nearest(@input_values)
+=item fair_round_adjacent(@input_values)
 
 Returns a list of integer values, each of which is one of which is numerically
 adjacent to the corresponding element of @input_values, and whose total is
@@ -135,11 +138,7 @@ precision).
 
 =cut
 
-use POSIX qw/floor DBL_EPSILON/;
-
-our $debug = 0;
-
-sub fair_round_nearest {
+sub fair_round_adjacent {
     my @in = @_;
 
     # First, create the extra entry for the total, so that the sum of
@@ -152,7 +151,7 @@ sub fair_round_nearest {
     my @order = shuffle($[..$#in);
     @in = map $in[$_], @order;
 
-    my @out = fair_round_nearest_1(@in);
+    my @out = fair_round_adjacent_1(@in);
 
     sum(0, @out) == 0 or die "internal error" if $debug;
 
@@ -165,9 +164,9 @@ sub fair_round_nearest {
     return @r;
 }
 
-# Like fair_round_nearest, except that the inputs must sum to zero, and the
+# Like fair_round_adjacent, except that the inputs must sum to zero, and the
 # input order may affect the variance and correlations, etc.
-sub fair_round_nearest_1 {
+sub fair_round_adjacent_1 {
     my $eps1 = 4.0 * DBL_EPSILON() * (1 + @_);
     my $eps = $eps1;
     my @ip = map { floor($_) } @_;
