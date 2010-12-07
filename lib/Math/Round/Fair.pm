@@ -170,43 +170,19 @@ sub fair_round_adjacent_1 {
     my $eps1 = 4.0 * DBL_EPSILON() * (1 + @_);
     my $eps = $eps1;
     my @fp = map { my $ip = floor($_); $_ - $ip } @_;
+
     do { $_ < 0.0 and die "internal error" for(@fp)} if $debug;
-    {
-        # Adjust @fp to account for numerical errors due to small
-        # difference of large numbers when the integer parts are big.
-        my $sumfp = sum 0, @fp;
-        if($sumfp != int($sumfp)) {
-            my $target = int($sumfp + 0.5);
-            abs($sumfp - $target) < 0.1 && $sumfp+0.05 != $sumfp or
-              die "Total loss of precision";
-            my $adj = $target / $sumfp;
-            if($adj <= 1.0) {
-                $_ *= $adj for @fp;
-            } else {
-                $adj = (@fp - $target) / (@fp - $sumfp);
-                $_ = 1.0 - (1.0-$_) * $adj for @fp;
-            }
-        }
-        # TBD: Maybe accuracy or fairness can be improved by
-        # re-adjusting after every iteration.  This would slow it
-        # down significantly, though.
-    }
+
+    # TBD: Maybe accuracy or fairness can be improved by
+    # re-adjusting after every iteration.  This would slow it
+    # down significantly, though.
+    _adjust_input(\@fp);
+
     my @out;
     INPUT: while(@fp) {
         $eps += $eps1;
-        if($debug) {
-            if($debug > 1) {
-                warn sprintf "%d %f\n", floor($_[$_]), $fp[$_]
-                  for($[..$#fp);
-            }
-            # Check invariants.
-            die unless @_;
-            $_ < -$eps && die "internal error: $_" for(@fp);
-            $_ > 1.0+$eps && die "internal error: $_" for(@fp);
-            my $sum = sum 0, @fp;
-            abs($sum-int($sum + 0.5)) < $eps * (1 + $sum) or
-              die "internal error: $sum";
-        }
+
+        _check_invariants($eps, \@_, \@fp) if $debug;
 
         # Calculate the next output.  Discard the next input in the
         # process.
@@ -217,40 +193,29 @@ sub fair_round_adjacent_1 {
         # Now adjust the remaining fractional parts.
 
         # $slack[i] = min( $p0 * $fp[i], (1-$p0) * (1-$fp[i]) ).
-        my @slack = map {
-            if(1) {
-                min $p0 * $_, (1 - $_) * (1.0 - $p0)
-            } else {
-                # This is fewer FLOPS, but the perf benefit
-                # is only 1% on a modern system, and it leads
-                # to greater numerical errors for some reason.
-                my $add = $p0 + $_;
-                my $mult = $p0 * $_;
-                $add > 1.0 ? 1.0 - $add + $mult : $mult
-            }
-        } @fp;
-        my $tslack = sum 0, @slack;
+        my ($tslack, @slack) = _slack($p0, \@fp);
 
         # See bottom of file for proof of this property:
-        $tslack + $eps >= $p0 * (1.0 - $p0) or
-          die "internal error: $tslack $eps";
+        die "internal error: $tslack $eps" unless $tslack + $eps >= $p0 * (1.0 - $p0);
         warn "TSLACK = $tslack\n" if $debug > 1;
 
-        if($tslack > $eps1) {
+        if ( $tslack > $eps1 ) {
             $eps += 128.0 * $eps1 * $eps / $tslack;
-            my $gain;
             # NOTE: The expected value of gain is
             #	$p0 * ($p0 - 1.0) /$tslack +
             #	(1.0 - $p0) * $p0 / $tslack = 0
-            if($r0) {
-                # Last guy overpaid, so the probabilities for
-                # subsequent payers drop.
-                $gain = ($p0 - 1.0) / $tslack;
-            } else {
-                # Last guy underpaid, so the probabilities for
-                # subsequent payers rise.
-                $gain = $p0 / $tslack;
-            }
+            my $gain = do {
+                if ( $r0 ) {
+                    # Last guy overpaid, so the probabilities for
+                    # subsequent payers drop.
+                    ($p0 - 1.0) / $tslack;
+                }
+                else {
+                    # Last guy underpaid, so the probabilities for
+                    # subsequent payers rise.
+                    $p0 / $tslack;
+                }
+            };
 
             # NOTE: The change in the sum of @fp due to this step
             # is $tslack * $gain, which is either $p0 or ($p0 - 1).
@@ -269,6 +234,70 @@ sub fair_round_adjacent_1 {
     }
     die if @_;
     return @out;
+}
+
+sub _adjust_input {
+    my $p = shift;
+
+    # Adjust @$p to account for numerical errors due to small
+    # difference of large numbers when the integer parts are big.
+    my $sum = sum @$p;
+    if ( $sum != floor($sum) ) {
+        my $target = floor($sum + 0.5);
+
+        die "Total loss of precision"
+            unless abs($sum - $target) < 0.1 && $sum + 0.05 != $sum;
+
+        my $adj = $target / $sum;
+        if ( $adj <= 1.0 ) {
+            $_ *= $adj for @$p;
+        } else {
+            $adj = (@$p - $target) / (@$p - $sum);
+            $_ = 1.0 - (1.0-$_) * $adj for @$p;
+        }
+    }
+}
+
+sub _check_invariants {
+    my ( $eps, $v, $fp ) = @_;
+
+    if ( $debug > 1 ) {
+        warn sprintf "%d %f\n", floor($_), $_ for @$fp;
+    }
+
+    die unless @$v && @$v == @$fp;
+
+    for ( @$fp ) {
+        die "internal error: $_ < \$eps"       if $_ < -$eps;
+        die "internal error: $_ > 1.0 + \$eps" if $_ > 1.0 + $eps;
+    }
+
+    my $sum = sum @$fp;
+    die "internal error: sum=$sum"
+        unless abs($sum - floor($sum + 0.5)) < $eps * (1 + $sum);
+}
+
+sub _slack {
+    my ( $p0, $fp ) = @_;
+
+    my $sum = 0.0;
+    my @slack = map {
+        if ( 1 ) {
+            my $slack = min $p0 * $_, (1 - $_) * (1.0 - $p0);
+            $sum += $slack;
+            $slack;
+        }
+        else {
+            # This is fewer FLOPS, but the perf benefit
+            # is only 1% on a modern system, and it leads
+            # to greater numerical errors for some reason.
+            my $add = $p0 + $_;
+            my $mult = $p0 * $_;
+            $add > 1.0 ? 1.0 - $add + $mult : $mult
+        }
+    } @$fp;
+
+    return ($sum, @slack);
 }
 
 1;
