@@ -169,8 +169,7 @@ sub fair_round_adjacent {
 sub fair_round_adjacent_1 {
     my $eps1 = 4.0 * DBL_EPSILON() * (1 + @_);
     my $eps = $eps1;
-    my @ip = map { floor($_) } @_;
-    my @fp = map { $_[$_] - $ip[$_] } ($[..$#_);
+    my @fp = map { my $ip = floor($_); $_ - $ip } @_;
     do { $_ < 0.0 and die "internal error" for(@fp)} if $debug;
     {
         # Adjust @fp to account for numerical errors due to small
@@ -197,11 +196,11 @@ sub fair_round_adjacent_1 {
         $eps += $eps1;
         if($debug) {
             if($debug > 1) {
-                warn sprintf "%d %f\n", ($ip[$_], $fp[$_])
+                warn sprintf "%d %f\n", floor($_[$_]), $fp[$_]
                   for($[..$#fp);
             }
             # Check invariants.
-            die unless @ip;
+            die unless @_;
             $_ < -$eps && die "internal error: $_" for(@fp);
             $_ > 1.0+$eps && die "internal error: $_" for(@fp);
             my $sum = sum 0, @fp;
@@ -213,7 +212,7 @@ sub fair_round_adjacent_1 {
         # process.
         my $p0 = shift @fp; # Probability of having to overpay
         my $r0 = rand()<$p0 ? 1 : 0; # 1 if selected to overpay; else 0
-        push @out, (shift @ip) + $r0;
+        push @out, floor(shift @_) + $r0;
 
         # Now adjust the remaining fractional parts.
 
@@ -268,7 +267,7 @@ sub fair_round_adjacent_1 {
             $_ += shift(@slack) * $gain for(@fp);
         }
     }
-    die if @ip;
+    die if @_;
     return @out;
 }
 
