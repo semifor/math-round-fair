@@ -15,7 +15,7 @@ BEGIN {
         }
 }
 
-use Math::Round::Fair qw(fair_round_adjacent);
+use Math::Round::Fair qw(round_adjacent);
 
 sub run_case {
 	my ($in, $iterations, $how_unlikely) = @_;
@@ -28,7 +28,7 @@ sub run_case {
 	my @accums = map { 0.0 } (@in, 'SUM');
 	for my $iteration (1..$iterations) {
 		eval {
-			my @out = fair_round_adjacent(@in);
+			my @out = round_adjacent(@in);
 			die "wrong number of results" unless @out==@in;
 			my $round_sum=0;
 			$round_sum += $_ for(@out);

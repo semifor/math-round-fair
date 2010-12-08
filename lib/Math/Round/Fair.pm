@@ -10,7 +10,7 @@ use POSIX qw/floor ceil DBL_EPSILON/;
 
 our $VERSION = '0.01-aj1';
 
-our @EXPORT_OK = qw/round_fair fair_round_adjacent/;
+our @EXPORT_OK = qw/round_fair round_adjacent/;
 
 our $debug;
 BEGIN {
@@ -122,6 +122,9 @@ sub round_fair {
     my $value = shift;
 
     croak "Value to be allocated must be an integer >= 0" unless int($value) == $value && $value >= 0;
+
+    return ($value) if @_ == 1;
+    return (0) x @_ if $value == 0;
     
     my $basis = 0;
     for my $w ( @_ ) {
@@ -129,13 +132,20 @@ sub round_fair {
         $basis += $w;
     }
 
-    return ($value) if @_ == 1;
-    return (0) x @_ if $value == 0;
+    my $sum = 0;
+    my @in = map { my $r = $value * $_ / $basis; $sum += $r; $r } @_;
 
-    fair_round_adjacent(map { $value * $_ / $basis } @_)
+    # First, create the extra entry for the total, so that the sum of
+    # the new array is zero.
+    push @in, -$sum;
+
+    my $out = _round_adjacent_arrayref(\@in);
+    pop @$out; # Discard the entry for the total
+
+    return @$out;
 }
 
-=item fair_round_adjacent(@input_values)
+=item round_adjacent(@input_values)
 
 Returns a list of integer values, each of which is one of which is numerically
 adjacent to the corresponding element of @input_values, and whose total is
@@ -147,40 +157,49 @@ precision).
 
 =cut
 
-sub fair_round_adjacent {
-    my @in = @_;
+sub round_adjacent {
+    return () unless @_; # identity
 
     # First, create the extra entry for the total, so that the sum of
     # the new array is zero.
-    my $sum = sum 0, @in;
-    push @in, -$sum;
+    push @_, -sum(@_);
+
+    # use a reference to eliminate an unnecessary copy
+    my $out = _round_adjacent_arrayref(\@_);
+
+    pop @$out; # Discard the entry for the total
+    return @$out;
+}
+
+sub _round_adjacent_arrayref {
+    my $in = shift;
 
     # Next, shuffle the order, so that the input order has no effect
     # on the randomness characteristics.
-    my @order = shuffle($[..$#in);
-    @in = map $in[$_], @order;
+    my @order = shuffle($[ .. $#{$in});
+    @$in = map $in->[$_], @order;
 
-    my @out = fair_round_adjacent_1(@in);
+    my $out = _round_adjacent_core($in);
 
-    assert(sum(0, @out) == 0);
+    assert(sum(@$out) == 0);
 
     # put the output back into original order
     my @r;
-    $r[$order[$_]] = $out[$_] for $[ .. $#order;
+    $r[$order[$_]] = $out->[$_] for $[ .. $#order;
 
-    pop @r; # Discard the entry for the total
-
-    return @r;
+    return \@r;
 }
 
-# Like fair_round_adjacent, except that the inputs must sum to zero, and the
+# Like _round_adjacent_arrayref, except that the inputs must sum to zero, and the
 # input order may affect the variance and correlations, etc.
-sub fair_round_adjacent_1 {
-    my $in = \@_;
+sub _round_adjacent_core {
+    my $in = shift;
 
-    my $eps1 = 4.0 * DBL_EPSILON() * (1 + @_);
+    assert(scalar @$in); # @$in must not be empty
+
+    my $eps1 = 4.0 * DBL_EPSILON() * (1 + @$in);
     my $eps = $eps1;
-    my @fp = map { my $ip = floor($_); $_ - $ip } @_;
+    my @fp = map { my $ip = floor($_); $_ - $ip } @$in;
 
     assert(none(@fp) < 0.0);
 
@@ -190,7 +209,7 @@ sub fair_round_adjacent_1 {
     _adjust_input(\@fp);
 
     my @out;
-    INPUT: while(@fp) {
+    INPUT: while() {
         $eps += $eps1;
 
         assert(_check_invariants($eps, $in, \@fp));
@@ -199,7 +218,9 @@ sub fair_round_adjacent_1 {
         # process.
         my $p0 = shift @fp; # Probability of having to overpay
         my $r0 = rand()<$p0 ? 1 : 0; # 1 if selected to overpay; else 0
-        push @out, floor(shift @_) + $r0;
+        push @out, floor(shift @$in) + $r0;
+
+        last unless @fp;
 
         # Now adjust the remaining fractional parts.
 
@@ -209,7 +230,8 @@ sub fair_round_adjacent_1 {
         # See bottom of file for proof of this property:
         assert($tslack + $eps >= $p0 * (1.0 - $p0));
 
-        warn "TSLACK = $tslack\n" if $debug > 1;
+        # wrapped in assert to make it a noop when $debug == 0
+        assert(do { warn "TSLACK = $tslack\n" if $debug > 1; 1 });
 
         if ( $tslack > $eps1 ) {
             $eps += 128.0 * $eps1 * $eps / $tslack;
@@ -241,11 +263,11 @@ sub fair_round_adjacent_1 {
             # (1 - $p0) * (1 - $_) * $p0 / ($p0 * (1.0 - $p0)) ==
             # 1 - $_.
             # We modify in place here, for performance.
-            $_ += shift(@slack) * $gain for(@fp);
+            $_ += shift(@slack) * $gain for @fp;
         }
     }
-    die if @_;
-    return @out;
+    assert(@$in == 0);
+    return \@out;
 }
 
 sub _adjust_input {
