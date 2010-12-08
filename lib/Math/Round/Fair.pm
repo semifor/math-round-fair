@@ -2,6 +2,7 @@ package Math::Round::Fair;
 use warnings;
 use strict;
 use 5.005000;
+use Devel::Assert;
 use Carp;
 use base qw/Exporter/;
 use List::Util qw/shuffle sum min/;
@@ -9,9 +10,17 @@ use POSIX qw/floor ceil DBL_EPSILON/;
 
 our $VERSION = '0.01-aj1';
 
-our $debug = 0;
-
 our @EXPORT_OK = qw/round_fair fair_round_adjacent/;
+
+our $debug;
+BEGIN {
+    $debug = $ENV{MATH_ROUND_FAIR_DEBUG} || 0;
+    use Devel::Assert $debug ? ('-all -verbose') : ();
+
+    # used in assertions
+    eval q{use Perl6::Junction 'none'} if $debug;
+}
+
 
 =head1 NAME
 
@@ -153,7 +162,7 @@ sub fair_round_adjacent {
 
     my @out = fair_round_adjacent_1(@in);
 
-    sum(0, @out) == 0 or die "internal error" if $debug;
+    assert(sum(0, @out) == 0);
 
     # put the output back into original order
     my @r;
@@ -167,11 +176,13 @@ sub fair_round_adjacent {
 # Like fair_round_adjacent, except that the inputs must sum to zero, and the
 # input order may affect the variance and correlations, etc.
 sub fair_round_adjacent_1 {
+    my $in = \@_;
+
     my $eps1 = 4.0 * DBL_EPSILON() * (1 + @_);
     my $eps = $eps1;
     my @fp = map { my $ip = floor($_); $_ - $ip } @_;
 
-    do { $_ < 0.0 and die "internal error" for(@fp)} if $debug;
+    assert(none(@fp) < 0.0);
 
     # TBD: Maybe accuracy or fairness can be improved by
     # re-adjusting after every iteration.  This would slow it
@@ -182,7 +193,7 @@ sub fair_round_adjacent_1 {
     INPUT: while(@fp) {
         $eps += $eps1;
 
-        _check_invariants($eps, \@_, \@fp) if $debug;
+        assert(_check_invariants($eps, $in, \@fp));
 
         # Calculate the next output.  Discard the next input in the
         # process.
@@ -196,7 +207,8 @@ sub fair_round_adjacent_1 {
         my ($tslack, @slack) = _slack($p0, \@fp);
 
         # See bottom of file for proof of this property:
-        die "internal error: $tslack $eps" unless $tslack + $eps >= $p0 * (1.0 - $p0);
+        assert($tslack + $eps >= $p0 * (1.0 - $p0));
+
         warn "TSLACK = $tslack\n" if $debug > 1;
 
         if ( $tslack > $eps1 ) {
@@ -265,16 +277,17 @@ sub _check_invariants {
         warn sprintf "%d %f\n", floor($_), $_ for @$fp;
     }
 
-    die unless @$v && @$v == @$fp;
+    assert(@$v && @$v == @$fp);
 
     for ( @$fp ) {
-        die "internal error: $_ < \$eps"       if $_ < -$eps;
-        die "internal error: $_ > 1.0 + \$eps" if $_ > 1.0 + $eps;
+        assert($_ >= -$eps);
+        assert($_ <= 1.0 + $eps);
     }
 
     my $sum = sum @$fp;
-    die "internal error: sum=$sum"
-        unless abs($sum - floor($sum + 0.5)) < $eps * (1 + $sum);
+    assert(abs($sum - floor($sum + 0.5)) < $eps * (1 + $sum));
+
+    1;
 }
 
 sub _slack {
