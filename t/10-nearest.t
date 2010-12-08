@@ -2,8 +2,6 @@
 
 use strict;
 $^W=1;
-BEGIN { chdir "t" if -d "t"; }
-use lib '../blib/arch', '../blib/lib';
 
 use Test;
 BEGIN { plan tests => 6, todo => [] }

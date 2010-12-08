@@ -2,8 +2,8 @@
 
 use strict;
 $^W=1;
-BEGIN { chdir "t" if -d "t"; }
-use lib '../blib/arch', '../blib/lib';
+
+use lib 't/lib';
 
 my ($seed, $cases, $iterations);
 BEGIN {
