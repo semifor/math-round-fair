@@ -6,8 +6,8 @@ $^W=1;
 use Test;
 BEGIN { plan tests => 6, todo => [] }
 
+BEGIN { $ENV{MATH_ROUND_FAIR_DEBUG} = 1 }
 use Math::Round::Fair qw(round_adjacent);
-$Math::Round::Fair::debug = 1;
 
 srand(0);
 my @result = round_adjacent();

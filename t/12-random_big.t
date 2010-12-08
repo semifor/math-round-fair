@@ -21,9 +21,9 @@ BEGIN {
 	plan tests => $cases, todo => [];
 }
 
+BEGIN { $ENV{MATH_ROUND_FAIR_DEBUG} = 1 }
 use Check_FairRound;
 use Math::Round::Fair;
-$Math::Round::Fair::debug = 1;
 
 sub gen_test_case {
  	my $n = 5+int(rand(50));

@@ -12,13 +12,15 @@ our $VERSION = '0.01_01';
 
 our @EXPORT_OK = qw/round_fair round_adjacent/;
 
-our $debug;
 BEGIN {
+    my $debug;
+    sub DEBUG { $debug }
+
     $debug = $ENV{MATH_ROUND_FAIR_DEBUG} || 0;
-    use Devel::Assert $debug ? ('-all -verbose') : ();
+    use Devel::Assert DEBUG() ? ('-all -verbose') : ();
 
     # used in assertions
-    eval q{use Perl6::Junction 'none'} if $debug;
+    eval q{use Perl6::Junction 'none'} if DEBUG();
 }
 
 
@@ -230,8 +232,8 @@ sub _round_adjacent_core {
         # See bottom of file for proof of this property:
         assert($tslack + $eps >= $p0 * (1.0 - $p0));
 
-        # wrapped in assert to make it a noop when $debug == 0
-        assert(do { warn "TSLACK = $tslack\n" if $debug > 1; 1 });
+        # wrapped in assert to make it a noop when DEBUG() == 0
+        assert(do { warn "TSLACK = $tslack\n" if DEBUG() > 1; 1 });
 
         if ( $tslack > $eps1 ) {
             $eps += 128.0 * $eps1 * $eps / $tslack;
@@ -295,7 +297,7 @@ sub _adjust_input {
 sub _check_invariants {
     my ( $eps, $v, $fp ) = @_;
 
-    if ( $debug > 1 ) {
+    if ( DEBUG() > 1 ) {
         warn sprintf "%d %f\n", floor($_), $_ for @$fp;
     }
 
