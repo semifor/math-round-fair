@@ -347,16 +347,17 @@ __END__
 
 =item *
 
-A number of in-situ integrity checks are enabled by default.
-The execution time can be reduced by approximately 25% if these checks
-are disabled by setting $Math::Round::Fair::debug to 0.
-This might become the default someday, so set it to 1 if you really want
-the checks.
+A number of in-situ integrity checks are enabled by setting
+C<$ENV{MATH_ROUND_FAIR_DEBUG}> before loading C<Math::Round::Fair>.  These
+integrity checks increase runtime by approximately one-third.  Set
+C<$ENV{MATH_ROUND_FAIR_DEBUG}> to 1 to enable integrity checks, 2 for some
+extra debug output, 0, or unset to disable the checks.  By default, the integrity
+checks are disabled.
 
 =item *
 
 The algorithm that satisfies these constraints is not necessarily unique,
-and then implementation may change over time.
+and the implementation may change over time.
 
 =item *
 
@@ -366,7 +367,7 @@ The number of invocations to rand() per call may change in subsequent versions.
 
 =item *
 
-The rounding of each element in the list in I<not> independent of the rounding
+The rounding of each element in the list is I<not> independent of the rounding
 of the other elements.
 This is the price that you pay for guaranteeing that the total is also fair
 and accurate.
