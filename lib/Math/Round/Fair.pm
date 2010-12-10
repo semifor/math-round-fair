@@ -227,7 +227,25 @@ sub _round_adjacent_core {
         # Now adjust the remaining fractional parts.
 
         # $slack[i] = min( $p0 * $fp[i], (1-$p0) * (1-$fp[i]) ).
-        my ($tslack, @slack) = _slack($p0, \@fp);
+        my @slack;
+        my $tslack = 0.0;
+        do {
+            @slack = map {
+                if ( 1 ) {
+                    my $slack = min $p0 * $_, (1 - $_) * (1.0 - $p0);
+                    $tslack += $slack;
+                    $slack;
+                }
+                else {
+                    # This is fewer FLOPS, but the perf benefit
+                    # is only 1% on a modern system, and it leads
+                    # to greater numerical errors for some reason.
+                    my $add = $p0 + $_;
+                    my $mult = $p0 * $_;
+                    $add > 1.0 ? 1.0 - $add + $mult : $mult
+                }
+            } @fp;
+        };
 
         # See bottom of file for proof of this property:
         assert($tslack + $eps >= $p0 * (1.0 - $p0));
@@ -312,29 +330,6 @@ sub _check_invariants {
     assert(abs($sum - floor($sum + 0.5)) < $eps * (1 + $sum));
 
     1;
-}
-
-sub _slack {
-    my ( $p0, $fp ) = @_;
-
-    my $sum = 0.0;
-    my @slack = map {
-        if ( 1 ) {
-            my $slack = min $p0 * $_, (1 - $_) * (1.0 - $p0);
-            $sum += $slack;
-            $slack;
-        }
-        else {
-            # This is fewer FLOPS, but the perf benefit
-            # is only 1% on a modern system, and it leads
-            # to greater numerical errors for some reason.
-            my $add = $p0 + $_;
-            my $mult = $p0 * $_;
-            $add > 1.0 ? 1.0 - $add + $mult : $mult
-        }
-    } @$fp;
-
-    return ($sum, @slack);
 }
 
 1;
