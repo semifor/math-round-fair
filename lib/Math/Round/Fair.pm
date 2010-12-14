@@ -8,7 +8,7 @@ use base qw/Exporter/;
 use List::Util qw/shuffle sum min/;
 use POSIX qw/floor ceil DBL_EPSILON/;
 
-our $VERSION = '0.01_01';
+our $VERSION = '0.02';
 
 our @EXPORT_OK = qw/round_fair round_adjacent/;
 
