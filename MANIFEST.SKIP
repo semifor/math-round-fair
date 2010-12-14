@@ -45,3 +45,6 @@
 
 # Avoid copies to .orig
 \.orig$
+
+# For github only
+README.pod

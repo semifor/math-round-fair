@@ -1,10 +1,12 @@
 #!perl
 use warnings;
 use strict;
-use Test::More tests => 5;
+use Test::More tests => 6;
 use List::Util qw/sum min max/;
 
 BEGIN { use_ok 'Math::Round::Fair', qw/round_fair/ }
+
+ok Math::Round::Fair::DEBUG(), 'assertions enabled for tests';
 
 my $to_allocate = 7;
 my @weights = (1) x 10;
