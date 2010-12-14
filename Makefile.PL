@@ -1,4 +1,5 @@
 use inc::Module::Install;
+no strict 'subs';
 
 if ( $Module::Install::AUTHOR ) {
     system('pod2text lib/Math/Round/Fair.pm > README');

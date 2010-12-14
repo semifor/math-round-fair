@@ -386,38 +386,118 @@ same terms as Perl itself.
 
 PROOF THAT $tslack >= $p0 * (1 - $p0)
 
-Imagine a clock, where 0.0 is noon, 0.5 is 6 o'clock, and 1.0 is noon again,
-etc.  If we start at 0.0, and advance clockwise first for $p0, and then for
-every remaining element of @fp, then we have to wind up at noon (according
-to the invariant).
+At the beginning of each iteration (i.e. initially and immediately before each
+time the first element of @fp is removed), the sum of @fp must be an integer.
+As a result, at least one of the following statements is true after each time
+the first element of @fp is removed as $p0 but before the remaining elements
+are adjusted:
 
-If $p0 is 0 or 1, then it is possible that every element of @fp is either 0
-or 1, in which case $tslack is 0 and the theorem holds trivially.  Otherwise,
-the clock has to somehow travel the absolute distance back to noon.
+(1) $_==0 || $_==1 for $p0 and for all @fp.
+(2) sum { $_ <= 1-$p0 ? $_ : 0 } @fp >= 1-$p0. [That is, the remaining
+    elements that would alone increase the fractional part must sum to at least
+    enough to make the total integral.]
+(3) sum { $_ >= 1-$p0 ? 1-$_ : 0 } @fp >= $p0. [That is, the complements of
+    the remaining elements that would alone decrease the fractional part must
+    sum to at least enough to make the total integral.]
 
-slack($_, $p0) == (1-$p0)*(1-$_) if and only if (1-$p0)*(1-$_) <= $p0*$_, or
-equivalently 1-$p0-$_+$p0*$_ <= $p0*$_, or equivalently $_ >= 1-$p0.  For
-$_ <= 1-$p0, we can imagine the clock advancing clockwise by $_.  For
-$_ >= 1-$p0, we can imagine the clock retreating counter-clockwise by 1-$_.
-Starting at $p0, the total absolute distance traveled clockwise must be at least
-1-$p0, or the total abolute distance traveled counter-clockwise must be
-at least $p0 (or both).
+To understand this, consider the following:
+    If no element of @fp is neither 0 nor 1, then (1) must be true.
+    If any element of @fp is 1-$p0, then both (2) and (3) must be true.
 
-Mathematically:
+    OTHERWISE, consider the subset @fpf of @fp whose members are neither
+    0 nor 1 (nor 1-$p0).
+    Let @fpp = @fpf[0..$#fpf-1] and let $fpN = $fpf[-1].  It must be true
+    that frac($p0 + (sum @fpp) + $fpN) == 0.
 
-$tslack == sum { $_ <= 1-$p0 ? $p0*$_ : (1-$p0)*(1-$_) } @fp ==
+    For (2), consider:
+    * $fpN == 1 - frac($p0 + sum @fpp).
+    * If $fpN < 1-$p0 and (3) is false, then:
+      * sum { $_ >= 1-$p0 ? 1-$_ : 0 } @fp < $p0  [converse of (3)]
+      * sum { $_ >= 1-$p0 ? 1-$_ : 0 } @fp ==
+        sum { $_ > 1-$p0 ? 1-$_ : 0 } @fpp +
+          sum { $_ >= 1-$p0 && frac($_)==0 ? 1-$_ : 0 } @fp
+      * sum { $_ >= 1-$p0 && frac($_)==0 ? 1-$_ : 0 } @fp == 0
+      * sum { $_ >= 1-$p0 ? 1-$_ : 0 } @fp ==
+        sum { $_ > 1-$p0 ? 1-$_ : 0 } @fpp
+      * sum { $_ > 1-$p0 ? 1-$_ : 0 } @fpp < $p0
+      * $fpN ==
+        1 - frac($p0 + sum { $_ > 1-$p0 ? $_ : 0 } @fpp +
+          sum { $_ < 1-$p0 ? $_ : 0 } @fpp) ==
+        1 - frac($p0 - sum { $_ > 1-$p0 ? 1-$_ : 0 } @fpp +
+          sum { $_ < 1-$p0 ? $_ : 0 } @fpp)
+        [because frac(y + sum @x) = frac(y - sum { 1-$_ } @x), for all
+         y >= sum { 1-$_ } @x and sum(@x) >= -y]
+      * $fpN >=
+        1 - ($p0 - sum { $_ > 1-$p0 ? 1-$_ : 0 } @fpp +
+          sum { $_ < 1-$p0 ? $_ : 0 } @fpp)
+        [because frac(x) <= x for all x >= 0, and recall that
+         sum { $_ > 1-$p0 ? 1-$_ : 0 } @fpp < $p0]
+      * 1 - ($p0 - sum { $_ > 1-$p0 ? 1-$_ : 0 } @fpp +
+          sum { $_ < 1-$p0 ? $_ : 0 } @fpp) >=
+        1 - ($p0 + sum { $_ < 1-$p0 ? $_ : 0 } @fpp)
+        [because 1 - (x - y) >= 1 - x for all y >= 0]
+      * Transitively, $fpN >= 1 - ($p0 + sum { $_ < 1-$p0 ? $_ : 0 } @fpp)
+      * Therefore $fpN + sum { $_ < 1-$p0 ? $_ : 0 } @fpp >= 1-$p0,
+        which is equivalent to (2), because:
+        * sum { $_ <= 1-$p0 ? $_ : 0 } @fp ==
+          $fpN + sum { $_ < 1-$p0 ? $_ : 0 } @fpp +
+            sum { $_ < 1-$p0 && frac($_) == 0 ? $_ : 0 } @fp ==
+          $fpN + sum { $_ < 1-$p0 ? $_ : 0 } @fpp.
+
+    Similarly for (3), consider:
+    * 1-$fpN == frac($p0 + sum @fpp) == 1 - frac(1-$p0 + sum { 1-$_ } @fpp)
+    * If $fpN > 1-$p0 and (2) is false, then:
+      * sum { $_ <= 1-$p0 ? $_ : 0 } @fp < 1-$p0
+      * sum { $_ <= 1-$p0 ? $_ : 0 } @fp ==
+        sum { $_ < 1-$p0 ? $_ : 0 } @fpp +
+          sum { $_ <= 1-$p0 && frac($_)==0 ? $_ : 0 } @fp ==
+        sum { $_ < 1-$p0 ? $_ : 0 } @fpp < 1-$p0
+      * 1-$fpN ==
+        1 - frac(1-$p0 + sum { $_ < 1-$p0 ? 1-$_ : 0 } @fpp +
+          sum { $_ > 1-$p0 ? 1-$_ : 0 } @fpp) ==
+        1 - frac(1-$p0 - sum { $_ < 1-$p0 ? $_ : 0 } @fpp +
+          sum { $_ > 1-$p0 ? 1-$_ : 0 } @fpp)
+      * 1-$fpN >= 1 - (1-$p0 + sum { $_ > 1-$p0 ? 1-$_ : 0 } @fpp)
+      * Therefore 1-$fpN + sum { $_ > 1-$p0 ? 1-$_ : 0 } @fpp >= $p0,
+        which is equivalent to (3), because:
+        * sum { $_ >= 1-$p0 ? 1-$_ : 0 } @fp ==
+          1-$fpN + sum { $_ > 1-$p0 ? 1-$_ : 0 } @fpp
+
+[More intuitively, think of a clock where the hour hand represents the
+fractional part, 12 o'clock being zero and 6 o'clock being one half.
+If $p0 is 0.25, then you start at 3 o'clock.  You can group the remaining
+@fp's into the ones that are > 0.75 (call them the "counter-clockwise" ones)
+and the ones that are < 0.75 (call them the "clockwise" ones).
+If you can't get to noon or beyond clockwise by summing the ones <= 0.75, then
+it's not going to help to include any of the ones > 0.75, because each one of
+them would increase the remaining angle to get to noon clockwise.  In that
+case, it is still possible that you can get to noon or beyond counter-clockwise
+by summing the ones >= 0.75, but, similarly, if you can't then it's not going
+to help to include any of the ones < 0.75.  Since it is a pre-condition that
+the full sum winds up exactly at noon, in particular it must be true that
+there exists a (possibly improper) subset whose sum gets you to noon or beyond
+in one direction or the other.]
+
+Note that $tslack == sum { $_ <= 1-$p0 ? $p0*$_ : (1-$p0)*(1-$_) } @fp ==
   $p0 * sum { $_ <= 1-$p0 ? $_ : 0 } @fp +
+  (1-$p0) * sum { $_ > 1-$p0 ? 1-$_ : 0 } @fp ==
+  $p0 * sum { $_ < 1-$p0 ? $_ : 0 } @fp +
   (1-$p0) * sum { $_ >= 1-$p0 ? 1-$_ : 0 } @fp.
 
-sum { $_ <= 1-$p0 ? $_ : 0 } @fp >= 1-$p0. [clockwise]
-sum { $_ >= 1-$p0 ? 1-$_ : 0 } @fp >= $p0. [counter-clockwise]
+Because $_ >= 0 and (1-$_) >= 0 for $p0 and for all @fp, we have
+  $p0 * sum { $_ < 1-$p0 ? $_ : 0 } @fp >= 0 and
+  (1-$p0) * sum { $_ > 1-$p0 ? 1-$_ : 0 } @fp >= 0; therefore
+  $tslack >= $p0 * sum { $_ <= 1-$p0 ? $_ : 0 } @fp, and
+  $tslack >= (1-$p0) * sum { $_ >= 1-$p0 ? 1-$_ : 0 } @fp.
 
-And if $p0 * (1 - $p0) > 0, then either
-  sum { $_ <= 1-$p0 ? $_ : 0 } @fp >= 1 - $p0, which implies
-  $tslack >= $p0 * sum { $_ <= 1-$p0 ? $_ : 0 } @fp >= $p0 * (1 - $p0);
-or
-  sum { $_ >= 1-$p0 ? 1 - $_ : 0 } @fp >= $p0, which implies
-  $tslack >= (1-$p0) * sum { $_ >= 1-$p0 ? 1-$_ : 0 } @fp >= (1 - $p0) * $p0.
+If (1) is true, then $tslack == $p0 * (1 - $p0) == 0; therefore
+$tslack >= $p0 * (1 - $p0).
+
+If (2) is true, then $p0 * sum { $_ <= 1-$p0 ? $_ : 0 } @fp >= $p0 * (1-$p0);
+therefore, by transitivity, $tslack >= $p0 * (1 - $p0).
+
+If (3) is true, then (1-$p0) * sum { $_ >= 1-$p0 ? 1-$_ : 0 } @fp >=
+(1-$p0) * $p0; therefore, by transitivity, $tslack >= $p0 * (1 - $p0).
 
 q.e.d.
 
