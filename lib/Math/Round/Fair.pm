@@ -30,7 +30,7 @@ Math::Round::Fair - distribute rounding errors fairly
 
 =head1 SYNOPSIS
 
-  use Math::Round::Fair 'round_fair';
+  use Math::Round::Fair 'round_fair', 'round_adjacent';
 
   my $cents = 7;
   my @weights = (1, 2, 3, 2, 1);
@@ -60,14 +60,25 @@ Math::Round::Fair - distribute rounding errors fairly
   # 698 1411 2096 1418 677
 
 
+  my @rounded = round_adjacent(0.95, 0.65, 0.41, 0.99);
+  # @rounded will be one of the following:
+  # 59% of the time: 1, 1, 0, 1
+  # 35% of the time: 1, 0, 1, 1
+  #  5% of the time: 0, 1, 1, 1
+  #  1% of the time: 1, 1, 1, 0
+
+
 =head1 DESCRIPTION
 
-This module provides a single, exportable function, C<round_fair>, which
-allocates an integer value, fairly distributing rounding errors.
+This module provides a two, exportable functions, C<round_fair>, which
+allocates an integer value, fairly distributing rounding errors, and
+C<round_adjacent>, which takes a list of real numbers and rounds them up, or
+down, to an adjacent integer, fairly. Both functions return a list of fairly
+rounded integer values.
 
-C<round_fair> rounds up, or down, randomly, where the probability of rounding
-up is equal to the fraction to round.  For example, C<round_fair> will round
-0.5 to 1.0 with a probability of 0.5.  It will round 0.3 to 1.0 3 out of 10
+C<round_fair> and C<round_adjacent> round up, or down, randomly, where the
+probability of rounding up is equal to the fraction to round.  For example, 0.5
+will round to 1.0 with a probability of 0.5.  0.3 will round to 1.0 3 out of 10
 times and to zero 7 out of 10 times, on average.
 
 Consider the problem of distributing one indivisible item, for example a penny,
@@ -93,7 +104,7 @@ account A and account C will receive no allocation, and account B will receive
 a total allocation of 10,000 items.  Account B always receives the benefit of
 the rounding errors using the second method.
 
-C<round_fair> uses an algorithm with randomness to ensure a fair distribution of
+The algorithm employed by this module uses randomness to ensure a fair distribution of
 rounding errors.  In our example problem, we start with 1 item to allocate.  We
 calculate account A's share, 1/3.  Since it is less than one item, we give it a
 1/3 chance of rounding up (and, therefore, a 2/3 chance of rounding down).  It
@@ -127,7 +138,7 @@ sub round_fair {
 
     return ($value) if @_ == 1;
     return (0) x @_ if $value == 0;
-    
+
     my $basis = 0;
     for my $w ( @_ ) {
         croak "Weights must be > 0" unless $w > 0;
@@ -149,7 +160,7 @@ sub round_fair {
 
 =item round_adjacent(@input_values)
 
-Returns a list of integer values, each of which is one of which is numerically
+Returns a list of integer values, each of which is numerically
 adjacent to the corresponding element of @input_values, and whose total is
 numerically adjacent to the total of @input_values.
 
