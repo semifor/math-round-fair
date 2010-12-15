@@ -70,7 +70,7 @@ Math::Round::Fair - distribute rounding errors fairly
 
 =head1 DESCRIPTION
 
-This module provides a two, exportable functions, C<round_fair>, which
+This module provides two exportable functions, C<round_fair>, which
 allocates an integer value, fairly distributing rounding errors, and
 C<round_adjacent>, which takes a list of real numbers and rounds them up, or
 down, to an adjacent integer, fairly. Both functions return a list of fairly
