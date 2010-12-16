@@ -5,6 +5,8 @@ use Test::More tests => 3;
 use List::Util 'sum';
 use Perl6::Junction 'all';
 
+BEGIN { $ENV{MATH_ROUND_FAIR_DEBUG} = 1 }
+
 BEGIN {
     *CORE::GLOBAL::rand = sub { 0.99999 };
 }

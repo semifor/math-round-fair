@@ -22,7 +22,4 @@ test_requires 'Math::CDF';
 auto_set_repository;
 auto_manifest;
 
-# ensure $debug=1 for tests
-preamble "export MATH_ROUND_FAIR_DEBUG=1\n";
-
 WriteAll;

@@ -4,6 +4,8 @@ use strict;
 use Test::More tests => 6;
 use List::Util qw/sum min max/;
 
+BEGIN { $ENV{MATH_ROUND_FAIR_DEBUG} = 1 }
+
 BEGIN { use_ok 'Math::Round::Fair', qw/round_fair/ }
 
 ok Math::Round::Fair::DEBUG(), 'assertions enabled for tests';
